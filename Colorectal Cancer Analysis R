@@ -1,0 +1,124 @@
+---
+title: "Colorectal Cancer Analysis"
+output: bookdown::html_document2
+date: "2025-04-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+```
+
+## PREAMBLE define variables
+```{r abc}
+Dataset <- read.csv("colorectal_Fixed.csv")
+x1name <- "Alcohol_Consumption"
+x2name <- "Physical_Activity"
+x3name <- "Smoking_History"
+x4name <- "Age"
+yname <- "Tumor_Size_mm"
+```
+
+
+
+
+```{r}
+## Getting data from variable names (this should only depend upon preamble)
+x1 <- Dataset[,x1name]
+x2 <- Dataset[,x2name]
+x3 <- Dataset[,x3name]
+x4 <- Dataset[,x4name]
+y <- Dataset[,yname]
+```
+
+Use ANOVA to identify main-effects and interactions between variables
+```{r anova}
+model <- aov(y ~ x1 * x2 * x3 * x4)
+summary(model)
+
+ggplot(Dataset, aes(x = x1, y = y)) +
+  geom_boxplot() +
+  labs(title = paste(yname, "by", x1name), x = x1name, y = yname)
+
+ggplot(Dataset, aes(x = x2, y = y)) +
+  geom_boxplot() +
+  labs(title = paste(yname, "by", x2name), x = x2name, y = yname)
+
+ggplot(Dataset, aes(x = x3, y = y)) +
+  geom_boxplot() +
+  labs(title = paste(yname, "by", x3name), x = x3name, y = yname)
+
+ggplot(Dataset, aes(x = x4, y = y)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE)
+  labs(title = paste(yname, "vs", x4name), x = x4name, y = yname)
+```
+The reason why we perform an ANOVA is to see correlations between possible main effects and the tumor size. According to the graphs, most of the variables chosen follow the expected pattern(smoking, alcohol, and age) however, increased physical activity showed something a bit suprising as more physical activity showed signs of correlations with a bigger tumor size. Generally physical activity is considered healthy which is why this finding was suprising. So the unhealthy activities + age increase led to an increase in the tumor size but so did physical activity.
+
+
+Predictive model(regression) using demographic data to predict outcomes and assessing goodness-of-fit
+```{r regression}
+model1 <- lm(y ~ Smoking_History + Age + Alcohol_Consumption + Gender + Urban_or_Rural + Physical_Activity, data = Dataset)
+summary(model1)
+
+plot(model$residuals,
+     main = "Model Residuals",
+     xlab = "Observation Index",
+     ylab = "Residuals")
+albine(h = 0, col = "red")
+```
+I created a regression model using smoking and drinking history on top of age. I also included more than just my variables of choice because I felt the model would be more accurate with more factors influencing it like it would in the real world. I also assessed goodness-of-fit using a residual model and when plotting said model, it seemed like the measure of error was centered around zero, showing no clear pattern or trend which is usually a good indicator of a good regression model without major outliers or any other issues that could lead to misinforming results and predictions.
+
+
+Ex.) Joe is a 40 year old male who drinks alcohol, smokes, lives in an urban area, and has low physical activity. If he had to change just one of these things to decrease risk of a bad outcome, which should he change?
+```{r}
+joe <- data.frame(Age = 40,
+                  Gender = "M",
+                  Smoking_History = "Yes",
+                  Alcohol_Consumption = "Yes",
+                  Urban_or_Rural = "Urban",
+                  Physical_Activity = "Low")
+
+# Predicted tumor size for Joe
+prediction_size <- predict(model1, newdata = joe)
+
+# Predict biggest changes
+joe_smoke <- joe
+joe_smoke$Smoking_History <- "No"
+nosmoke <- predict(model1, newdata = joe_smoke)
+
+joe_drink <- joe
+joe_drink$Alcohol_Consumption <- "No"
+nodrink <- predict(model1, newdata = joe_drink)
+
+joe_active <- joe
+joe_active$Physical_Activity <- "High"
+active <- predict(model1, newdata = joe_active)
+prediction_size <- predict(model1, newdata = joe)
+
+joe_smoke <- joe
+joe_smoke$Smoking_History <- "No"
+nosmoke <- predict(model1, newdata = joe_smoke)
+
+joe_drink <- joe
+joe_drink$Alcohol_Consumption <- "No"
+nodrink <- predict(model1, newdata = joe_drink)
+
+joe_active <- joe
+joe_active$Physical_Activity <- "High"
+active <- predict(model1, newdata = joe_active)
+
+results <- data.frame(
+  Scenario = c("Original", "Stop Smoking", "Stop Drinking", "Activity"),
+  Predicted_Tumor_Size = c(prediction_size, nosmoke, nodrink, active)
+)
+results
+
+ggplot(results, aes(x = Scenario, y = Predicted_Tumor_Size)) +
+  geom_col(fill = "blue") +
+  labs(title = "Joe's Predicted Tumor Size based off of variables",
+       x = "Scenario",
+       y = "Predicted tumor size") +
+  theme_minimal()
+```
+I only tested the most available/possible options because I thought it would be impractical to see if age or location mattered because you can't change your biological age and it could be hard to relocate/change your living situation. So I did it based off of the most practical changes being smoking, drinking, or his physical activity. When I tested for each case by taking them out from the prediction model, quitting smoking made the biggest difference and resulted in the smallest tumor size with quitting drinking right behind it. So if he had to choose just one thing to decrease a bad outcome, I would choose for him to quit smoking. You can refer to either the dataframe results or the graph based on the results. I also just used one plot instead of multiple subplots to make it easier for comparison rather than making a subplot for each different variable.
